@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fake Review Detection System | Team Rocket</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <div class="app-container">
+    <!-- LOGIN VIEW -->
+    <div id="login-view" class="view-card active">
+      <div class="brand-header">
+        <div class="brand-icon">🛡️</div>
+        <h1>Fake Review Detector</h1>
+        <p class="brand-subtitle">AI-Powered Review Authenticity Verification System</p>
+      </div>
+
+      <div class="login-card glass-panel">
+        <h2>Welcome Back</h2>
+        <p class="login-desc">Please sign in to access the detection system</p>
+
+        <form id="login-form" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <div class="input-wrapper">
+              <span class="input-icon">👤</span>
+              <input type="text" id="username" placeholder="Enter username (e.g. admin)" required autocomplete="username">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <div class="input-wrapper">
+              <span class="input-icon">🔒</span>
+              <input type="password" id="password" placeholder="Enter password (e.g. password123)" required autocomplete="current-password">
+            </div>
+          </div>
+
+          <div id="login-error" class="error-banner hidden">
+            ⚠️ Invalid credentials. Use demo credentials below.
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full">
+            <span>🔐 Sign In to Dashboard</span>
+          </button>
+        </form>
+
+        <div class="demo-credentials">
+          <p class="demo-title">💡 Demo Access Credentials:</p>
+          <div class="demo-chips">
+            <button type="button" class="chip" onclick="fillDemo('admin', 'admin123')">🔑 Admin Demo</button>
+            <button type="button" class="chip" onclick="fillDemo('user', 'user123')">👤 User Demo</button>
+          </div>
+        </div>
+      </div>
+
+      <footer class="site-footer">
+        <p>Made with ❤️ by Team Rocket</p>
+      </footer>
+    </div>
+
+    <!-- MAIN APP DASHBOARD VIEW -->
+    <div id="app-view" class="view-card hidden">
+      <header class="app-header glass-panel">
+        <div class="header-brand">
+          <span class="header-logo">🛡️</span>
+          <div>
+            <h2 class="header-title">Fake Review Detection System</h2>
+            <p class="header-subtitle">Analyze product review text to verify authenticity</p>
+          </div>
+        </div>
+
+        <div class="header-user">
+          <div class="user-badge">
+            <span class="user-avatar" id="user-avatar-initial">A</span>
+            <span class="user-name" id="user-display-name">Admin</span>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="handleLogout()">
+            <span>🚪 Logout</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="dashboard-content">
+        <section class="card glass-panel search-section">
+          <div class="section-header">
+            <h3>📝 Enter Product Review for Analysis</h3>
+            <span class="badge-tag">NLP Model v1.0</span>
+          </div>
+
+          <div class="sample-chips-bar">
+            <span class="sample-label">Try sample review:</span>
+            <button type="button" class="sample-chip sample-real" onclick="loadSample(true)">
+              ✅ Authentic Product Review
+            </button>
+            <button type="button" class="sample-chip sample-fake" onclick="loadSample(false)">
+              🚨 Promotional / Fake Review
+            </button>
+          </div>
+
+          <div class="textarea-wrapper">
+            <textarea 
+              id="review-input" 
+              placeholder="Paste or type a customer product review here..." 
+              rows="5"
+              oninput="updateCharCount()"
+            ></textarea>
+            <div class="textarea-footer">
+              <span id="char-count">0 characters</span>
+              <button type="button" class="btn-clear-text" onclick="clearInput()">Clear</button>
+            </div>
+          </div>
+
+          <button type="button" id="btn-predict" class="btn btn-primary btn-full btn-lg" onclick="analyzeReview()">
+            <span id="btn-text">🔍 Predict Review Authenticity</span>
+            <span id="btn-spinner" class="spinner hidden"></span>
+          </button>
+
+          <div id="result-container" class="result-container hidden">
+            <div id="result-card" class="result-card">
+              <div class="result-header">
+                <div class="result-icon-badge" id="result-icon">✅</div>
+                <div class="result-text-group">
+                  <h4 id="result-label">REAL REVIEW</h4>
+                  <p id="result-summary">High statistical confidence based on linguistic patterns.</p>
+                </div>
+              </div>
+
+              <div class="confidence-box">
+                <div class="confidence-header">
+                  <span>Authenticity Confidence Score</span>
+                  <span id="confidence-score-val" class="confidence-score-val">98.50%</span>
+                </div>
+                <div class="progress-track">
+                  <div id="progress-fill" class="progress-fill" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <div class="signals-list" id="signals-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- RECENT 5 HISTORY SECTION -->
+        <section class="card glass-panel history-section">
+          <div class="section-header">
+            <h3>🕒 Recent 5 Analysis History</h3>
+            <button type="button" class="btn-text-only" onclick="clearHistory()">🗑️ Clear History</button>
+          </div>
+
+          <div id="history-empty" class="history-empty">
+            <p>No recent analysis history yet. Analyze a review above to see recent logs here!</p>
+          </div>
+
+          <div id="history-list" class="history-list"></div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>Made with ❤️ by Team Rocket</p>
+      </footer>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

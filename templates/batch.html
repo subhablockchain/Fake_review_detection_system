@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Batch Checker — Fake Review Detection System</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Batch Review Checker</h1>
+      <p class="subtitle"><a href="/">&larr; Back to single review checker</a></p>
+    </header>
+
+    <main>
+      <p>
+        Upload a CSV file with a <code>review_text</code> column (an optional
+        <code>rating</code> column is also supported). Up to 100,000 rows per
+        upload. You'll get a CSV back with a prediction for every row.
+      </p>
+
+      <form id="batch-form">
+        <input type="file" id="csv-file" accept=".csv" required />
+        <button type="submit" id="batch-submit-btn">Upload & Analyze</button>
+      </form>
+
+      <div id="batch-progress" class="hint hidden">Processing your file — this can take a little while for larger batches...</div>
+      <p id="batch-error" class="error hidden"></p>
+      <p id="batch-success" class="hint hidden"></p>
+      <div id="batch-summary" class="batch-summary hidden"></div>
+
+      <div id="batch-results-wrap" class="hidden">
+        <h2 style="margin-top: 24px; font-size: 18px;">Batch Results Preview</h2>
+        <div class="table-legend">
+          <span class="legend-item">
+            <span class="legend-line legend-line-false"></span>
+            <strong>False (Fake) Lines:</strong> Marked with Red Line
+          </span>
+          <span class="legend-item">
+            <span class="legend-line legend-line-true"></span>
+            <strong>True (Genuine) Lines:</strong> Marked with Green Line
+          </span>
+        </div>
+        <div class="batch-table-wrap">
+          <table class="batch-results-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Review Text</th>
+                <th>Rating</th>
+                <th>Label</th>
+                <th>Confidence</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody id="batch-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/batch.js"></script>
+</body>
+</html>

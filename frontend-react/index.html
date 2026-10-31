@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fake Review Detection System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.25.6/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // Enable class-based dark mode for Tailwind's CDN build
+  tailwind.config = { darkMode: "class" };
+</script>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 min-h-screen transition-colors">
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// Point this at your running backend. Same-origin by default; change if
+// the API is hosted separately from this static file.
+const API_BASE = "http://127.0.0.1:8000";
+
+// ---------------------------------------------------------------------
+// Dark mode
+// ---------------------------------------------------------------------
+
+function useDarkMode() {
+  const [dark, setDark] = useState(() => {
+    const stored = localStorage.getItem("theme");
+    if (stored) return stored === "dark";
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("theme", dark ? "dark" : "light");
+  }, [dark]);
+
+  return { dark, toggle: () => setDark((d) => !d) };
+}
+
+// ---------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------
+
+function useAuth() {
+  const [token, setToken] = useState(localStorage.getItem("access_token"));
+  const [username, setUsername] = useState(localStorage.getItem("username"));
+
+  const login = (data) => {
+    localStorage.setItem("access_token", data.access_token);
+    localStorage.setItem("username", data.username);
+    setToken(data.access_token);
+    setUsername(data.username);
+  };
+
+  const logout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("username");
+    setToken(null);
+    setUsername(null);
+  };
+
+  return { token, username, login, logout };
+}
+
+function authHeaders(token, extra = {}) {
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
+}
+
+async function downloadBlob(url, headers, filename) {
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Export failed.");
+  }
+  const blob = await res.blob();
+  const objUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// ---------------------------------------------------------------------
+// Shared bits
+// ---------------------------------------------------------------------
+
+function NavBar({ page, setPage, auth, darkMode }) {
+  const linkClass = (name) =>
+    `px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition ${
+      page === name
+        ? "bg-indigo-600 text-white"
+        : "text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+    }`;
+
+  return (
+    <nav className="max-w-3xl mx-auto flex items-center justify-between py-4 px-4">
+      <div className="font-bold text-indigo-700 dark:text-indigo-400 text-lg">🔍 Fake Review Detector</div>
+      <div className="flex gap-2 items-center">
+        <span className={linkClass("check")} onClick={() => setPage("check")}>Check</span>
+        <span className={linkClass("dashboard")} onClick={() => setPage("dashboard")}>Dashboard</span>
+        <span className={linkClass("batch")} onClick={() => setPage("batch")}>Batch</span>
+        {auth.username ? (
+          <button
+            onClick={auth.logout}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200"
+          >
+            Log out ({auth.username})
+          </button>
+        ) : (
+          <span className={linkClass("login")} onClick={() => setPage("login")}>Log In</span>
+        )}
+        <button
+          onClick={darkMode.toggle}
+          title="Toggle dark mode"
+          className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-yellow-300 hover:opacity-80"
+        >
+          {darkMode.dark ? "☀️" : "🌙"}
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+function Badge({ label }) {
+  const isFake = label === "Fake";
+  return (
+    <span
+      className={`px-3 py-1 rounded-full text-xs font-semibold ${
+        isFake
+          ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function ConfidenceBadge({ level }) {
+  const styles = {
+    HIGH: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    MEDIUM: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    LOW: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  };
+  const icons = { HIGH: "✓", MEDIUM: "◐", LOW: "⚠️" };
+  return (
+    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${styles[level] || styles.LOW}`}>
+      {icons[level] || "?"} {level} CONFIDENCE
+    </span>
+  );
+}
+
+const cardClass = "bg-white dark:bg-slate-800 rounded-2xl shadow-sm dark:shadow-none dark:border dark:border-slate-700";
+
+// ---------------------------------------------------------------------
+// Check page
+// ---------------------------------------------------------------------
+
+function CheckPage({ auth }) {
+  const [reviewText, setReviewText] = useState("");
+  const [rating, setRating] = useState("");
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setResult(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/predict`, {
+        method: "POST",
+        headers: authHeaders(auth.token, { "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          review_text: reviewText,
+          rating: rating ? parseInt(rating, 10) : null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Something went wrong.");
+      setResult(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className={`max-w-xl mx-auto ${cardClass} p-6 mt-4`}>
+      <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-1">Analyze a Review</h1>
+      <p className="text-slate-500 dark:text-slate-400 text-sm mb-5">Paste a review and let the AI agent judge its authenticity.</p>
+
+      <form onSubmit={submit} className="space-y-4">
+        <textarea
+          className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+          rows="5"
+          placeholder="Paste a product or service review..."
+          value={reviewText}
+          onChange={(e) => setReviewText(e.target.value)}
+          required
+        />
+        <select
+          className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg p-2 text-sm"
+          value={rating}
+          onChange={(e) => setRating(e.target.value)}
+        >
+          <option value="">Rating (optional)</option>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <option key={n} value={n}>{n} star{n > 1 ? "s" : ""}</option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 text-white font-semibold py-2.5 rounded-lg transition"
+        >
+          {loading ? "Analyzing with AI..." : "Analyze Review"}
+        </button>
+      </form>
+
+      {error && (
+        <div className="mt-4 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-400 text-red-700 dark:text-red-300 text-sm p-3 rounded">{error}</div>
+      )}
+
+      {result && (
+        <div className="mt-4 space-y-3">
+          {result.needs_human_review && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 text-amber-800 dark:text-amber-200 text-sm p-3 rounded">
+              ⚠️ <strong>NEEDS HUMAN REVIEW</strong> — confidence is not high enough for an
+              automatic final decision. This does <em>not</em> mean the prediction is wrong.
+            </div>
+          )}
+          <div className={`p-4 rounded-lg space-y-2 border-l-[6px] ${
+            result.label === 'Fake'
+              ? 'border-l-red-500 bg-red-50/70 dark:bg-red-950/30'
+              : 'border-l-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/30'
+          }`}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-bold border ${
+                result.label === 'Fake'
+                  ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-300'
+                  : 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${result.label === 'Fake' ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+                {result.label === 'Fake' ? '🔴 False (Fake) — Marked with Red Line' : '🟢 True (Genuine) — Marked with Green Line'}
+              </span>
+              <ConfidenceBadge level={result.confidence_level} />
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{result.confidence}%</span>
+              {result.cached && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                  ⚡ cached result
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">{result.reasoning}</p>
+            {result.indicators && result.indicators.length > 0 && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <strong>Signals:</strong> {result.indicators.join(", ")}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Dashboard page
+// ---------------------------------------------------------------------
+
+function StatCard({ label, value }) {
+  return (
+    <div className={`${cardClass} p-4 text-center`}>
+      <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400">{value}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{label}</div>
+    </div>
+  );
+}
+
+function TrendChart({ data, dark }) {
+  const canvasRef = useRef(null);
+  const chartRef = useRef(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    if (chartRef.current) chartRef.current.destroy();
+
+    const gridColor = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+    const tickColor = dark ? "#cbd5e1" : "#475569";
+
+    chartRef.current = new Chart(canvasRef.current.getContext("2d"), {
+      type: "line",
+      data: {
+        labels: data.map((r) => r.day),
+        datasets: [
+          {
+            label: "Fake (False) - Red Line",
+            data: data.map((r) => r.fake_count),
+            borderColor: "#ef4444",
+            backgroundColor: "rgba(239,68,68,0.12)",
+            tension: 0.3,
+            fill: true,
+            borderWidth: 3,
+            pointBackgroundColor: "#ef4444",
+          },
+          {
+            label: "Genuine (True) - Green Line",
+            data: data.map((r) => r.genuine_count),
+            borderColor: "#10b981",
+            backgroundColor: "rgba(16,185,129,0.12)",
+            tension: 0.3,
+            fill: true,
+            borderWidth: 3,
+            pointBackgroundColor: "#10b981",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: "top", labels: { color: tickColor } } },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0, color: tickColor }, grid: { color: gridColor } },
+          x: { ticks: { color: tickColor }, grid: { color: gridColor } },
+        },
+      },
+    });
+
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [data, dark]);
+
+  return <canvas ref={canvasRef} height="90"></canvas>;
+}
+
+function DashboardPage({ auth, dark, setPage }) {
+  const [stats, setStats] = useState(null);
+  const [confDist, setConfDist] = useState(null);
+  const [trend, setTrend] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [exportError, setExportError] = useState("");
+
+  const load = useCallback(async () => {
+    if (!auth.token) return;
+    setLoading(true);
+    try {
+      const [statsRes, historyRes, trendRes, confRes] = await Promise.all([
+        fetch(`${API_BASE}/stats`, { headers: authHeaders(auth.token) }),
+        fetch(`${API_BASE}/history?limit=50`, { headers: authHeaders(auth.token) }),
+        fetch(`${API_BASE}/stats/trend?days=14`, { headers: authHeaders(auth.token) }),
+        fetch(`${API_BASE}/stats/confidence-distribution`, { headers: authHeaders(auth.token) }),
+      ]);
+      setStats(await statsRes.json());
+      setRows(await historyRes.json());
+      setTrend(await trendRes.json());
+      setConfDist(await confRes.json());
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [auth.token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Dashboard is a private, auth-required area — guests previously fell
+  // through to unfiltered/global data on these endpoints (security fix).
+  if (!auth.token) {
+    return (
+      <div className={`max-w-md mx-auto ${cardClass} p-6 mt-4 text-center`}>
+        <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Log in to view your dashboard</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+          Your prediction history, analytics, and exports are private to your account.
+        </p>
+        <button
+          onClick={() => setPage("login")}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-lg text-sm"
+        >
+          Log In / Sign Up
+        </button>
+      </div>
+    );
+  }
+
+  const remove = async (id) => {
+    if (!confirm(`Delete review #${id}?`)) return;
+    await fetch(`${API_BASE}/reviews/${id}`, { method: "DELETE", headers: authHeaders(auth.token) });
+    load();
+  };
+
+  const exportFile = async (kind) => {
+    setExportError("");
+    try {
+      const ext = kind === "excel" ? "xlsx" : "pdf";
+      await downloadBlob(
+        `${API_BASE}/export/${kind}?limit=200`,
+        authHeaders(auth.token),
+        `review_history.${ext}`
+      );
+    } catch (err) {
+      setExportError(err.message);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto mt-4 px-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        <StatCard label="Total Reviews" value={stats ? stats.total : "–"} />
+        <StatCard label={`Fake (${stats ? stats.fake_percentage : "–"}%)`} value={stats ? stats.fake_count : "–"} />
+        <StatCard label={`Genuine (${stats ? stats.genuine_percentage : "–"}%)`} value={stats ? stats.genuine_count : "–"} />
+        <StatCard label="Avg Confidence" value={stats ? `${stats.avg_confidence}%` : "–"} />
+        <StatCard label="Needs Human Review" value={stats ? stats.needs_human_review_count : "–"} />
+        <StatCard label="Cache Hits" value={stats ? stats.cache_hits : "–"} />
+        <StatCard label="LLM Calls" value={stats ? stats.llm_calls : "–"} />
+      </div>
+
+      <div className={`${cardClass} p-4 mb-5`}>
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Confidence Distribution</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{confDist ? confDist.HIGH : "–"}</div>
+            <div className="text-xs text-emerald-600 dark:text-emerald-400">HIGH</div>
+          </div>
+          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-amber-700 dark:text-amber-300">{confDist ? confDist.MEDIUM : "–"}</div>
+            <div className="text-xs text-amber-600 dark:text-amber-400">MEDIUM</div>
+          </div>
+          <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-red-700 dark:text-red-300">{confDist ? confDist.LOW : "–"}</div>
+            <div className="text-xs text-red-600 dark:text-red-400">LOW (flagged)</div>
+          </div>
+        </div>
+      </div>
+
+      <div className={`${cardClass} p-4 mb-5`}>
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Trend — Last 14 Days</h2>
+        {trend.length > 0 ? (
+          <TrendChart data={trend} dark={dark} />
+        ) : (
+          <p className="text-sm text-slate-400">Not enough data yet.</p>
+        )}
+      </div>
+
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => exportFile("excel")}
+          className="px-4 py-2 text-sm font-semibold rounded-lg border border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400 hover:bg-indigo-600 hover:text-white transition"
+        >
+          Export Excel
+        </button>
+        <button
+          onClick={() => exportFile("pdf")}
+          className="px-4 py-2 text-sm font-semibold rounded-lg border border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400 hover:bg-indigo-600 hover:text-white transition"
+        >
+          Export PDF
+        </button>
+      </div>
+      {exportError && <div className="mb-4 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-400 text-red-700 dark:text-red-300 text-sm p-3 rounded">{exportError}</div>}
+
+      <div className="flex items-center gap-4 text-xs font-semibold mb-3 px-3.5 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+        <span className="flex items-center gap-2 text-red-600 dark:text-red-400">
+          <span className="w-4 h-1.5 bg-red-500 rounded"></span> False (Fake) Lines: Marked with Red Line
+        </span>
+        <span className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+          <span className="w-4 h-1.5 bg-emerald-500 rounded"></span> True (Genuine) Lines: Marked with Green Line
+        </span>
+      </div>
+
+      <div className={`${cardClass} overflow-hidden`}>
+        <table className="w-full text-sm">
+          <thead className="bg-indigo-600 text-white">
+            <tr>
+              <th className="p-3 text-left">Review</th>
+              <th className="p-3 text-left">Rating</th>
+              <th className="p-3 text-left">Label</th>
+              <th className="p-3 text-left">Confidence</th>
+              <th className="p-3 text-left">Date</th>
+              <th className="p-3"></th>
+            </tr>
+          </thead>
+          <tbody className="text-slate-700 dark:text-slate-300">
+            {loading && (
+              <tr><td colSpan="6" className="p-4 text-center text-slate-500 dark:text-slate-400">Loading...</td></tr>
+            )}
+            {!loading && rows.length === 0 && (
+              <tr><td colSpan="6" className="p-4 text-center text-slate-500 dark:text-slate-400">No predictions yet.</td></tr>
+            )}
+            {rows.map((r) => {
+              const isFake = r.predicted_label === 'Fake';
+              return (
+                <tr
+                  key={r.id}
+                  className={`border-t border-slate-100 dark:border-slate-700 transition ${
+                    isFake
+                      ? 'border-l-[6px] border-l-red-500 bg-red-50/20 hover:bg-red-50/50 dark:bg-red-950/20'
+                      : 'border-l-[6px] border-l-emerald-500 bg-emerald-50/20 hover:bg-emerald-50/50 dark:bg-emerald-950/20'
+                  }`}
+                >
+                  <td className="p-3 max-w-xs truncate" title={r.review_text}>
+                    <span className={`inline-block w-1.5 h-3.5 rounded mr-2 align-middle ${isFake ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+                    {r.review_text}
+                  </td>
+                  <td className="p-3">{r.rating ?? "—"}</td>
+                  <td className="p-3"><Badge label={r.predicted_label} /></td>
+                  <td className="p-3 font-medium">{r.confidence}% {r.needs_human_review && <span title="Needs human review">⚠️</span>}</td>
+                  <td className="p-3 text-slate-500 dark:text-slate-400">{new Date(r.created_at).toLocaleString()}</td>
+                  <td className="p-3">
+                    <button
+                      onClick={() => remove(r.id)}
+                      className="text-red-600 dark:text-red-400 border border-red-300 dark:border-red-500 hover:bg-red-600 hover:text-white text-xs px-2 py-1 rounded"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Batch page
+// ---------------------------------------------------------------------
+
+function BatchPage({ auth }) {
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [previewRows, setPreviewRows] = useState([]);
+
+  const parseCSVLines = (text) => {
+    const lines = text.trim().split("\n");
+    if (lines.length <= 1) return [];
+    const parseLine = (l) => {
+      const res = []; let inQuotes = false; let cur = "";
+      for (let i = 0; i < l.length; i++) {
+        const c = l[i];
+        if (c === '"') {
+          if (inQuotes && l[i + 1] === '"') { cur += '"'; i++; }
+          else { inQuotes = !inQuotes; }
+        } else if (c === ',' && !inQuotes) { res.push(cur); cur = ""; }
+        else { cur += c; }
+      }
+      res.push(cur);
+      return res;
+    };
+    const header = parseLine(lines[0]);
+    const parsed = [];
+    for (let i = 1; i < lines.length && i <= 80; i++) {
+      if (!lines[i].trim()) continue;
+      const vals = parseLine(lines[i]);
+      const obj = {};
+      header.forEach((h, idx) => { obj[h.trim()] = (vals[idx] || "").trim(); });
+      parsed.push(obj);
+    }
+    return parsed;
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!file) return;
+    setError(""); setDone(false); setSummary(null); setPreviewRows([]); setLoading(true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(`${API_BASE}/predict/batch`, {
+        method: "POST",
+        headers: authHeaders(auth.token),
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Batch processing failed.");
+      }
+
+      const summaryHeader = res.headers.get("X-Batch-Summary");
+      if (summaryHeader) {
+        try {
+          setSummary(JSON.parse(atob(summaryHeader)));
+        } catch (e) { /* ignore malformed header */ }
+      }
+
+      const blob = await res.blob();
+      const text = await blob.text();
+      setPreviewRows(parseCSVLines(text));
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "batch_results.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setDone(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className={`max-w-xl mx-auto ${cardClass} p-6 mt-4`}>
+      <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-1">Batch Review Checker</h1>
+      <p className="text-slate-500 dark:text-slate-400 text-sm mb-5">
+        Upload a CSV with a <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">review_text</code> column
+        (optional <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">rating</code> column). Up to 100,000 rows.
+      </p>
+      <form onSubmit={submit} className="space-y-4">
+        <input
+          type="file"
+          accept=".csv"
+          onChange={(e) => setFile(e.target.files[0])}
+          className="w-full text-sm text-slate-700 dark:text-slate-300"
+          required
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 text-white font-semibold py-2.5 rounded-lg transition"
+        >
+          {loading ? "Processing..." : "Upload & Analyze"}
+        </button>
+      </form>
+      {error && <div className="mt-4 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-400 text-red-700 dark:text-red-300 text-sm p-3 rounded">{error}</div>}
+      {done && <div className="mt-4 bg-emerald-50 dark:bg-emerald-900/30 border-l-4 border-emerald-400 text-emerald-700 dark:text-emerald-300 text-sm p-3 rounded">Done — results file downloaded.</div>}
+      {summary && (
+        <div className="mt-4 bg-indigo-50 dark:bg-indigo-900/20 border-l-4 border-indigo-500 p-4 rounded-lg text-sm text-slate-700 dark:text-slate-300 space-y-1">
+          <p className="font-semibold text-indigo-700 dark:text-indigo-400">Batch Analysis Complete</p>
+          <p>Total Rows: {summary.total_rows}</p>
+          <p>Processed: {summary.processed}</p>
+          <p>Cache Hits: {summary.cache_hits}</p>
+          <p>LLM Calls: {summary.llm_calls}</p>
+          <p>Needs Human Review: {summary.needs_human_review}</p>
+          <p>Skipped (too short): {summary.skipped}</p>
+          <p>Errors: {summary.errors}</p>
+        </div>
+      )}
+
+      {previewRows.length > 0 && (
+        <div className="mt-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">Batch Preview ({previewRows.length} rows)</h2>
+          </div>
+          <div className="flex items-center gap-4 text-xs font-semibold px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+              <span className="w-3.5 h-1.5 bg-red-500 rounded"></span> False (Fake) Lines: Marked with Red Line
+            </span>
+            <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+              <span className="w-3.5 h-1.5 bg-emerald-500 rounded"></span> True (Genuine) Lines: Marked with Green Line
+            </span>
+          </div>
+          <div className="overflow-x-auto max-h-96 border border-slate-200 dark:border-slate-700 rounded-lg">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 sticky top-0">
+                <tr>
+                  <th className="p-2 text-left">#</th>
+                  <th className="p-2 text-left">Review</th>
+                  <th className="p-2 text-left">Rating</th>
+                  <th className="p-2 text-left">Label</th>
+                  <th className="p-2 text-left">Confidence</th>
+                  <th className="p-2 text-left">Reasoning</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {previewRows.map((r, i) => {
+                  const isFake = (r.predicted_label || "").toLowerCase() === "fake";
+                  return (
+                    <tr
+                      key={i}
+                      className={`${
+                        isFake
+                          ? "border-l-[5px] border-l-red-500 bg-red-50/30 dark:bg-red-950/20"
+                          : "border-l-[5px] border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/20"
+                      }`}
+                    >
+                      <td className="p-2 font-mono">{i + 1}</td>
+                      <td className="p-2 max-w-xs truncate" title={r.review_text}>{r.review_text}</td>
+                      <td className="p-2">{r.rating || "—"}</td>
+                      <td className="p-2"><Badge label={r.predicted_label || "—"} /></td>
+                      <td className="p-2 font-semibold">{r.confidence ? r.confidence + "%" : "—"}</td>
+                      <td className="p-2 max-w-xs truncate text-slate-500 dark:text-slate-400" title={r.reasoning}>{r.reasoning}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Login page
+// ---------------------------------------------------------------------
+
+function LoginPage({ auth, setPage }) {
+  const [mode, setMode] = useState("login");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/auth/${mode === "login" ? "login" : "signup"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Something went wrong.");
+      auth.login(data);
+      setPage("check");
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div className={`max-w-sm mx-auto ${cardClass} p-6 mt-4`}>
+      <div className="flex mb-5 gap-2">
+        <button
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold ${mode === "login" ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"}`}
+          onClick={() => setMode("login")}
+        >
+          Log In
+        </button>
+        <button
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold ${mode === "signup" ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"}`}
+          onClick={() => setMode("signup")}
+        >
+          Sign Up
+        </button>
+      </div>
+      <form onSubmit={submit} className="space-y-3">
+        <input
+          type="text" placeholder="Username" value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg p-2 text-sm" required
+        />
+        <input
+          type="password" placeholder="Password" value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg p-2 text-sm" required
+        />
+        <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg">
+          {mode === "login" ? "Log In" : "Create Account"}
+        </button>
+      </form>
+      {error && <div className="mt-3 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-400 text-red-700 dark:text-red-300 text-sm p-3 rounded">{error}</div>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// App shell
+// ---------------------------------------------------------------------
+
+function App() {
+  const [page, setPage] = useState("check");
+  const auth = useAuth();
+  const darkMode = useDarkMode();
+
+  return (
+    <div>
+      <NavBar page={page} setPage={setPage} auth={auth} darkMode={darkMode} />
+      {page === "check" && <CheckPage auth={auth} />}
+      {page === "dashboard" && <DashboardPage auth={auth} dark={darkMode.dark} setPage={setPage} />}
+      {page === "batch" && <BatchPage auth={auth} />}
+      {page === "login" && <LoginPage auth={auth} setPage={setPage} />}
+      <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-8 pb-6">
+        AI-agent powered — no trained ML model, reasoning via LLM prompting.
+      </p>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

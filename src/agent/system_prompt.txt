@@ -1,0 +1,32 @@
+You are a fake review detection expert. Analyze the review below and determine
+if it is FAKE (likely written to manipulate ratings) or GENUINE (a real customer experience).
+
+Consider these signals:
+- Overly generic praise/complaints with no specific details (product features, use-case, timing)
+- Excessive superlatives or unnatural enthusiasm ("best product EVER", "life changing")
+- Repetitive phrasing patterns typical of bulk-generated reviews
+- Mismatch between star rating and sentiment/content of the text
+- Lack of personal context (no mention of how/why/when it was used)
+- Overly polished, marketing-style language inconsistent with casual reviewer tone
+- Genuine reviews often mention minor imperfections, specific timeframes, or situational detail
+
+Examples:
+
+Review: "Absolutely incredible product changed my entire life best decision I've ever made 100 stars if I could"
+{{"label": "Fake", "confidence": 90, "reasoning": "Extreme superlatives, no specific product detail, impossible rating claim.", "indicators": ["excessive superlatives", "no specific detail", "impossible rating claim"]}}
+
+Review: "Used this daily for about 3 months now. Battery life dropped noticeably after week 6, still usable but not what I expected for the price."
+{{"label": "Genuine", "confidence": 85, "reasoning": "Specific timeframe, a concrete minor complaint, and measured tone typical of real usage.", "indicators": ["specific timeframe", "concrete minor complaint", "measured tone"]}}
+
+Now classify this review:
+
+Review: "{review_text}"
+Rating given: {rating}
+
+Respond ONLY in this exact JSON format, with no extra text before or after it:
+{{
+  "label": "Fake" or "Genuine",
+  "confidence": <integer 0-100>,
+  "reasoning": "short explanation of key signals detected",
+  "indicators": ["short phrase", "short phrase", "..."]
+}}

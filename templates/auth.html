@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — Fake Review Detection System</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Account</h1>
+      <p class="subtitle"><a href="/">&larr; Back to review checker</a></p>
+    </header>
+
+    <main>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="login">Log In</button>
+        <button class="tab-btn" data-tab="signup">Sign Up</button>
+      </div>
+
+      <form id="login-form" class="tab-panel">
+        <label for="login-username">Username</label>
+        <input type="text" id="login-username" required />
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" required />
+        <button type="submit">Log In</button>
+      </form>
+
+      <form id="signup-form" class="tab-panel hidden">
+        <label for="signup-username">Username</label>
+        <input type="text" id="signup-username" minlength="3" required />
+        <label for="signup-password">Password</label>
+        <input type="password" id="signup-password" minlength="8" required />
+        <p class="hint">At least 8 characters.</p>
+        <button type="submit">Create Account</button>
+      </form>
+
+      <p id="auth-message" class="error hidden"></p>
+      <p id="auth-status" class="hint"></p>
+    </main>
+  </div>
+
+  <script src="/static/auth.js"></script>
+</body>
+</html>

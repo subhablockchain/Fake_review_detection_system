@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint (syntax check)
+        run: python -m py_compile $(find src tests -name "*.py")
+
+      - name: Run tests
+        env:
+          # Dummy values so modules that read env vars at import time don't
+          # crash in CI — no real secrets or live services are needed since
+          # the LLM and DB calls are mocked in the test suite.
+          ANTHROPIC_API_KEY: "test-key-not-real"
+          JWT_SECRET_KEY: "test-secret-not-for-production"
+          DB_HOST: "localhost"
+          DB_USER: "root"
+          DB_PASSWORD: "test"
+          DB_NAME: "fake_review_detector_test"
+        run: pytest tests/ -v

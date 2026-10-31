@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeriReview AI — Fake Review Detection System</title>
+  <meta name="description" content="AI-agent-powered review authenticity checker with multi-dimensional linguistic anomaly analysis, real-time confidence scoring, and batch verification." />
+
+  <!-- Google Fonts: Plus Jakarta Sans & Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ==========================================================================
+       CSS Variables & Theme Tokens
+       ========================================================================== */
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-secondary: #0f172a;
+      --bg-glass: rgba(17, 24, 39, 0.72);
+      --bg-glass-elevated: rgba(30, 41, 59, 0.65);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 102, 241, 0.5);
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+
+      --accent-indigo: #6366f1;
+      --accent-cyan: #06b6d4;
+      --accent-violet: #8b5cf6;
+
+      --fake-red: #ef4444;
+      --fake-red-glow: rgba(239, 68, 68, 0.25);
+      --fake-bg: rgba(239, 68, 68, 0.08);
+
+      --genuine-green: #10b981;
+      --genuine-green-glow: rgba(16, 185, 129, 0.25);
+      --genuine-bg: rgba(16, 185, 129, 0.08);
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+
+      --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    }
+
+    /* ==========================================================================
+       Reset & Base Styles
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+      position: relative;
+    }
+
+    /* Ambient Background Glow Elements */
+    .ambient-glow {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.45;
+      animation: floatOrbs 18s ease-in-out infinite alternate;
+    }
+
+    .ambient-1 {
+      top: -150px;
+      left: -100px;
+      width: 550px;
+      height: 550px;
+      background: radial-gradient(circle, var(--accent-indigo) 0%, transparent 70%);
+    }
+
+    .ambient-2 {
+      top: 300px;
+      right: -120px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, var(--accent-violet) 0%, transparent 70%);
+      animation-delay: -5s;
+    }
+
+    .ambient-3 {
+      bottom: -150px;
+      left: 20%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, var(--accent-cyan) 0%, transparent 70%);
+      animation-delay: -10s;
+    }
+
+    @keyframes floatOrbs {
+      0% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(35px) scale(1.08); }
+      100% { transform: translateY(-20px) scale(0.96); }
+    }
+
+    /* Subtle Cyber Grid Texture */
+    .cyber-grid {
+      position: fixed;
+      inset: 0;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+      mask-image: radial-gradient(circle at 50% 30%, black 40%, transparent 90%);
+      -webkit-mask-image: radial-gradient(circle at 50% 30%, black 40%, transparent 90%);
+    }
+
+    /* ==========================================================================
+       Layout Containers
+       ========================================================================== */
+    .app-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    /* ==========================================================================
+       Glass Navigation Header
+       ========================================================================== */
+    .glass-nav {
+      position: sticky;
+      top: 16px;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      margin: 16px 0 40px;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-full);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+
+    .brand-icon-wrapper {
+      position: relative;
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-violet));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+    }
+
+    .brand-icon-wrapper svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2;
+    }
+
+    .brand-title {
+      font-family: var(--font-heading);
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-title span {
+      background: linear-gradient(120deg, #60a5fa, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-link {
+      padding: 8px 16px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: var(--radius-full);
+      transition: all 0.2s ease;
+    }
+
+    .nav-link:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .nav-link.active {
+      color: #fff;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+    }
+
+    .nav-btn-auth {
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      border-radius: var(--radius-full);
+      text-decoration: none;
+      box-shadow: 0 4px 14px rgba(79, 70, 229, 0.3);
+      transition: all 0.2s ease;
+    }
+
+    .nav-btn-auth:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(79, 70, 229, 0.45);
+    }
+
+    /* ==========================================================================
+       Hero Section
+       ========================================================================== */
+    .hero-section {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      color: #a5b4fc;
+      margin-bottom: 20px;
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+    }
+
+    .pulsing-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: var(--genuine-green);
+      box-shadow: 0 0 8px var(--genuine-green);
+      animation: pulseGreen 1.8s infinite;
+    }
+
+    @keyframes pulseGreen {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    .hero-title {
+      font-family: var(--font-heading);
+      font-size: clamp(34px, 5vw, 54px);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1.2px;
+      margin-bottom: 16px;
+    }
+
+    .hero-title-gradient {
+      background: linear-gradient(135deg, #ffffff 30%, #93c5fd 65%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      max-width: 680px;
+      margin: 0 auto;
+      font-size: clamp(15px, 2vw, 17px);
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* ==========================================================================
+       Analyzer Main Card (Glass Console)
+       ========================================================================== */
+    .console-card {
+      background: var(--bg-glass);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: clamp(24px, 4vw, 36px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .console-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    }
+
+    .console-top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .console-heading {
+      font-family: var(--font-heading);
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #e2e8f0;
+    }
+
+    /* Quick Preset Chips */
+    .preset-chips {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip-label {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chip-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chip-btn:hover {
+      background: rgba(255, 255, 255, 0.09);
+      color: var(--text-main);
+      transform: translateY(-1px);
+    }
+
+    .chip-btn.chip-fake:hover {
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    .chip-btn.chip-genuine:hover {
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #86efac;
+    }
+
+    /* Review Textarea Wrap */
+    .textarea-wrap {
+      position: relative;
+      margin-bottom: 18px;
+    }
+
+    textarea#review_text {
+      width: 100%;
+      min-height: 140px;
+      padding: 18px 20px 40px;
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-main);
+      background: rgba(10, 15, 26, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-md);
+      resize: vertical;
+      outline: none;
+      transition: all 0.25s ease;
+    }
+
+    textarea#review_text:focus {
+      border-color: var(--accent-indigo);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2), inset 0 2px 4px rgba(0, 0, 0, 0.3);
+      background: rgba(10, 15, 26, 0.85);
+    }
+
+    textarea#review_text::placeholder {
+      color: var(--text-dim);
+    }
+
+    .textarea-footer {
+      position: absolute;
+      bottom: 12px;
+      right: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+
+    /* Rating & Action Controls */
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .rating-control {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .rating-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    /* Interactive Star Selector */
+    .star-rating-box {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .star-icon {
+      font-size: 18px;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .star-icon.active,
+    .star-icon.hovered {
+      color: #fbbf24;
+      text-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+      transform: scale(1.15);
+    }
+
+    /* Hidden native select for standard form compliance */
+    select#rating {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      width: 0;
+      height: 0;
+    }
+
+    /* Submit Button */
+    button#submit-btn {
+      flex: 1;
+      max-width: 240px;
+      padding: 13px 26px;
+      font-family: var(--font-body);
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #4f46e5 100%);
+      border: none;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    button#submit-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(99, 102, 241, 0.5);
+    }
+
+    button#submit-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    button#submit-btn:disabled {
+      background: #334155;
+      color: #94a3b8;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    /* ==========================================================================
+       Result Section — Distinct Red & Green Lines
+       ========================================================================== */
+    .result {
+      margin-top: 32px;
+      padding: 24px 28px;
+      border-radius: var(--radius-md);
+      position: relative;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      animation: fadeInScale 0.35s ease-out;
+    }
+
+    @keyframes fadeInScale {
+      from { opacity: 0; transform: translateY(12px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Hidden Utility */
+    .hidden {
+      display: none !important;
+    }
+
+    /* Prominent Red Line for False/Fake Reviews */
+    .result.result-fake,
+    .result.result-false {
+      background: linear-gradient(90deg, var(--fake-bg) 0%, rgba(15, 23, 42, 0.9) 100%);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      border-left: 8px solid var(--fake-red) !important;
+      box-shadow: 0 12px 35px var(--fake-red-glow);
+    }
+
+    /* Prominent Green Line for True/Genuine Reviews */
+    .result.result-genuine,
+    .result.result-true {
+      background: linear-gradient(90deg, var(--genuine-bg) 0%, rgba(15, 23, 42, 0.9) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-left: 8px solid var(--genuine-green) !important;
+      box-shadow: 0 12px 35px var(--genuine-green-glow);
+    }
+
+    /* Header Banner inside Result */
+    .result-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .result-status-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+    }
+
+    .tag-false {
+      background: rgba(239, 68, 68, 0.18);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    .tag-true {
+      background: rgba(16, 185, 129, 0.18);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    /* Confidence Meter */
+    .confidence-meter-wrap {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+      padding: 14px 18px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .confidence-score-display {
+      font-family: var(--font-heading);
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .confidence-bar-track {
+      flex: 1;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .confidence-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .confidence-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-high {
+      background: rgba(16, 185, 129, 0.18);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-medium {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-low {
+      background: rgba(239, 68, 68, 0.18);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    /* Human Review Warning Banner */
+    .human-review-banner {
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      background: rgba(245, 158, 11, 0.12);
+      border-left: 4px solid #f59e0b;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: #fde68a;
+    }
+
+    /* Reasoning Text */
+    .result-reasoning-box {
+      margin-bottom: 14px;
+    }
+
+    .result-reasoning-box p {
+      font-size: 14px;
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+
+    /* Indicators / Detected Signals Pills */
+    .indicators-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .indicator-pill {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e2e8f0;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 8px;
+    }
+
+    .error {
+      margin-top: 16px;
+      padding: 14px 18px;
+      background: rgba(239, 68, 68, 0.15);
+      border-left: 4px solid var(--fake-red);
+      border-radius: var(--radius-sm);
+      color: #fca5a5;
+      font-size: 14px;
+    }
+
+    /* ==========================================================================
+       Feature Grid Section
+       ========================================================================== */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 50px;
+    }
+
+    .feature-card {
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      transition: all 0.25s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(99, 102, 241, 0.35);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .feature-icon {
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+
+    .feature-title {
+      font-family: var(--font-heading);
+      font-size: 16px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 8px;
+    }
+
+    .feature-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ==========================================================================
+       Metrics Strip
+       ========================================================================== */
+    .metrics-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 40px;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      text-align: center;
+    }
+
+    .metric-value {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff, #93c5fd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    /* ==========================================================================
+       Footer
+       ========================================================================== */
+    .app-footer {
+      text-align: center;
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .app-footer a {
+      color: #818cf8;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .app-footer a:hover {
+      color: #a5b4fc;
+      text-decoration: underline;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .controls-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      button#submit-btn {
+        max-width: 100%;
+      }
+      .metrics-strip {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .nav-links {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Ambient Glow Effects -->
+  <div class="ambient-glow ambient-1"></div>
+  <div class="ambient-glow ambient-2"></div>
+  <div class="ambient-glow ambient-3"></div>
+  <div class="cyber-grid"></div>
+
+  <div class="app-wrapper">
+    <!-- Glass Navigation Bar -->
+    <nav class="glass-nav" aria-label="Main Navigation">
+      <a href="/" class="nav-brand">
+        <div class="brand-icon-wrapper">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z"></path>
+            <path d="M9 12l2 2 4-4"></path>
+          </svg>
+        </div>
+        <div class="brand-title">VeriReview <span>AI</span></div>
+      </a>
+
+      <div class="nav-links">
+        <a href="/" class="nav-link active">Checker</a>
+        <a href="/dashboard" class="nav-link">Dashboard</a>
+        <a href="/batch" class="nav-link">Batch Upload</a>
+        <a href="/docs" class="nav-link" target="_blank">API Docs</a>
+      </div>
+
+      <div>
+        <a href="/login" id="auth-link" class="nav-btn-auth">Log In</a>
+      </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero-section">
+      <div class="hero-badge">
+        <span class="pulsing-dot"></span>
+        <span>AI Sentinel v3.0 • Multi-Dimensional Neural & Linguistic Engine</span>
+      </div>
+      <h1 class="hero-title">
+        AI-Powered <span class="hero-title-gradient">Fake Review Detection System</span>
+      </h1>
+      <p class="hero-subtitle">
+        Unmask fraudulent endorsements, automated bot spam, and paid testimonials using 
+        deep linguistic pattern analysis and real-time confidence verification.
+      </p>
+    </header>
+
+    <!-- Main Review Console -->
+    <main>
+      <section class="console-card" aria-label="Review Authenticity Analyzer">
+        <div class="console-top-bar">
+          <div class="console-heading">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            Review Authenticity Analyzer
+          </div>
+
+          <!-- Quick Test Sample Chips -->
+          <div class="preset-chips">
+            <span class="chip-label">Test Samples:</span>
+            <button type="button" class="chip-btn chip-fake" id="sample-fake-btn">
+              <span>🔴</span> Fake Sample
+            </button>
+            <button type="button" class="chip-btn chip-genuine" id="sample-genuine-btn">
+              <span>🟢</span> Genuine Sample
+            </button>
+            <button type="button" class="chip-btn" id="sample-nuanced-btn">
+              <span>🟡</span> Balanced Sample
+            </button>
+            <button type="button" class="chip-btn" id="sample-clear-btn">
+              <span>🧹</span> Clear
+            </button>
+          </div>
+        </div>
+
+        <form id="review-form">
+          <div class="textarea-wrap">
+            <textarea
+              id="review_text"
+              name="review_text"
+              placeholder="Paste or type a product or service review here to evaluate its authenticity..."
+              required
+            ></textarea>
+            <div class="textarea-footer">
+              <span id="word-count">0 words</span>
+              <span>•</span>
+              <span id="char-count">0 characters</span>
+            </div>
+          </div>
+
+          <div class="controls-row">
+            <!-- Star Rating Picker -->
+            <div class="rating-control">
+              <span class="rating-label">Rating given:</span>
+              <div class="star-rating-box" id="star-picker">
+                <span class="star-icon" data-value="1">★</span>
+                <span class="star-icon" data-value="2">★</span>
+                <span class="star-icon" data-value="3">★</span>
+                <span class="star-icon" data-value="4">★</span>
+                <span class="star-icon" data-value="5">★</span>
+              </div>
+              <!-- Hidden native select for standard form compliance -->
+              <select id="rating" name="rating">
+                <option value="">Not specified</option>
+                <option value="1">1 star</option>
+                <option value="2">2 stars</option>
+                <option value="3">3 stars</option>
+                <option value="4">4 stars</option>
+                <option value="5">5 stars</option>
+              </select>
+            </div>
+
+            <button type="submit" id="submit-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              <span>Analyze Review</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- Prediction Result Display Card -->
+        <section id="result" class="result hidden" aria-live="polite">
+          <div class="result-header-bar">
+            <div id="result-status-tag" class="result-status-tag"></div>
+            <span id="confidence-level-badge" class="confidence-badge"></span>
+          </div>
+
+          <div id="human-review-banner" class="human-review-banner hidden">
+            ⚠️ <strong>NEEDS HUMAN REVIEW</strong> — Confidence is borderline for an automatic decision. Manual review advised.
+          </div>
+
+          <!-- Dynamic Confidence Meter Bar -->
+          <div class="confidence-meter-wrap">
+            <div>
+              <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Prediction Confidence</div>
+              <div class="confidence-score-display">
+                <span id="result-label" style="display: none;"></span>
+                <span id="result-confidence">0</span>%
+              </div>
+            </div>
+            <div class="confidence-bar-track">
+              <div id="confidence-bar-fill" class="confidence-bar-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="result-reasoning-box">
+            <div style="font-size: 12px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Reasoning Analysis</div>
+            <p id="result-reasoning"></p>
+          </div>
+
+          <div id="result-indicators-wrap" class="hidden">
+            <div style="font-size: 12px; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Linguistic Signals Detected</div>
+            <div class="indicators-list" id="result-indicators-container"></div>
+            <!-- Keep original span for backwards compatibility -->
+            <span id="result-indicators" style="display: none;"></span>
+          </div>
+
+          <p id="result-cached-note" class="hint hidden">⚡ Served instantly from high-performance cache.</p>
+        </section>
+
+        <p id="error-message" class="error hidden" role="alert"></p>
+      </section>
+
+      <!-- Three Feature Highlight Cards -->
+      <section class="feature-grid" aria-label="Detection Capabilities">
+        <div class="feature-card">
+          <div class="feature-icon">🛡️</div>
+          <h2 class="feature-title">Multi-Signal Linguistic Engine</h2>
+          <p class="feature-desc">
+            Evaluates marketing superlatives, urgent call-to-actions, exclamation point density, and deceptive repetition patterns with high recall.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⏱️</div>
+          <h2 class="feature-title">Contextual & Temporal Grounding</h2>
+          <p class="feature-desc">
+            Identifies authentic consumer signals such as verified usage timelines, specific physical product attributes, and balanced constructive feedback.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h2 class="feature-title">Enterprise Batch Scalability</h2>
+          <p class="feature-desc">
+            Seamlessly upload and analyze CSV files up to 100,000 rows with real-time preview tables, Excel exports, and downloadable PDF audits.
+          </p>
+        </div>
+      </section>
+
+      <!-- Metrics Strip -->
+      <section class="metrics-strip" aria-label="System Metrics">
+        <div>
+          <div class="metric-value">100K</div>
+          <div class="metric-label">Max Batch Capacity</div>
+        </div>
+        <div>
+          <div class="metric-value">&lt; 50ms</div>
+          <div class="metric-label">Neural Engine Latency</div>
+        </div>
+        <div>
+          <div class="metric-value">100%</div>
+          <div class="metric-label">Privacy & Isolation</div>
+        </div>
+        <div>
+          <div class="metric-value">Zero</div>
+          <div class="metric-label">Fabricated Data</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>
+        VeriReview AI System • Built with FastAPI, SQLite, and Hybrid AI Agents.
+      </p>
+      <p style="margin-top: 6px;">
+        <a href="/dashboard">View Analytics Dashboard</a> • 
+        <a href="/batch">Batch File Upload</a> • 
+        <a href="/docs" target="_blank">API Documentation</a>
+      </p>
+    </footer>
+  </div>
+
+  <!-- Interactive Logic & API Client -->
+  <script>
+    const form = document.getElementById("review-form");
+    const textarea = document.getElementById("review_text");
+    const nativeRatingSelect = document.getElementById("rating");
+    const submitBtn = document.getElementById("submit-btn");
+    const resultSection = document.getElementById("result");
+    const errorMessage = document.getElementById("error-message");
+    const authLink = document.getElementById("auth-link");
+    const humanReviewBanner = document.getElementById("human-review-banner");
+    const confidenceBadge = document.getElementById("confidence-level-badge");
+    const indicatorsWrap = document.getElementById("result-indicators-wrap");
+    const indicatorsContainer = document.getElementById("result-indicators-container");
+    const cachedNote = document.getElementById("result-cached-note");
+    const confidenceBarFill = document.getElementById("confidence-bar-fill");
+    const wordCountEl = document.getElementById("word-count");
+    const charCountEl = document.getElementById("char-count");
+
+    // Sample preset chips
+    const sampleFakeBtn = document.getElementById("sample-fake-btn");
+    const sampleGenuineBtn = document.getElementById("sample-genuine-btn");
+    const sampleNuancedBtn = document.getElementById("sample-nuanced-btn");
+    const sampleClearBtn = document.getElementById("sample-clear-btn");
+
+    // Star rating picker
+    const starPicker = document.getElementById("star-picker");
+    const stars = starPicker.querySelectorAll(".star-icon");
+
+    // 1. Live Counters
+    function updateCounters() {
+      const text = textarea.value.trim();
+      const chars = textarea.value.length;
+      const words = text ? text.split(/\s+/).length : 0;
+      charCountEl.textContent = `${chars} character${chars === 1 ? '' : 's'}`;
+      wordCountEl.textContent = `${words} word${words === 1 ? '' : 's'}`;
+    }
+    textarea.addEventListener("input", updateCounters);
+
+    // 2. Interactive Star Rating
+    function setRating(val) {
+      nativeRatingSelect.value = val ? String(val) : "";
+      stars.forEach((star) => {
+        const starVal = parseInt(star.dataset.value, 10);
+        star.classList.toggle("active", starVal <= val);
+      });
+    }
+
+    stars.forEach((star) => {
+      star.addEventListener("click", () => {
+        const val = parseInt(star.dataset.value, 10);
+        const current = parseInt(nativeRatingSelect.value, 10) || 0;
+        setRating(current === val ? "" : val);
+      });
+      star.addEventListener("mouseenter", () => {
+        const val = parseInt(star.dataset.value, 10);
+        stars.forEach((s) => s.classList.toggle("hovered", parseInt(s.dataset.value, 10) <= val));
+      });
+    });
+
+    starPicker.addEventListener("mouseleave", () => {
+      stars.forEach((s) => s.classList.remove("hovered"));
+    });
+
+    // 3. Preset Samples
+    sampleFakeBtn.addEventListener("click", () => {
+      textarea.value = "This product changed my life, absolutely fantastic and revolutionary best ever buy now! 10/10 100% recommend to everyone!!!";
+      setRating(5);
+      updateCounters();
+      textarea.focus();
+    });
+
+    sampleGenuineBtn.addEventListener("click", () => {
+      textarea.value = "Used this daily for about 3 months now. Battery life dropped noticeably after week 6, still usable but not what I expected for the price. The material feels solid though.";
+      setRating(3);
+      updateCounters();
+      textarea.focus();
+    });
+
+    sampleNuancedBtn.addEventListener("click", () => {
+      textarea.value = "Good quality bowl, works as intended. Delivery was fast and arrived in one piece, though the color is slightly darker than the photos.";
+      setRating(4);
+      updateCounters();
+      textarea.focus();
+    });
+
+    sampleClearBtn.addEventListener("click", () => {
+      textarea.value = "";
+      setRating("");
+      updateCounters();
+      resultSection.classList.add("hidden");
+      errorMessage.classList.add("hidden");
+      textarea.focus();
+    });
+
+    // 4. Reflect Auth State
+    const username = localStorage.getItem("username");
+    if (authLink && username) {
+      authLink.textContent = `Log Out (${username})`;
+      authLink.href = "#";
+      authLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("username");
+        window.location.reload();
+      });
+    }
+
+    function confidenceBadgeClass(level) {
+      if (level === "HIGH") return "badge-high";
+      if (level === "MEDIUM") return "badge-medium";
+      return "badge-low";
+    }
+
+    function confidenceBadgeIcon(level) {
+      if (level === "HIGH") return "✓";
+      if (level === "MEDIUM") return "◐";
+      return "⚠️";
+    }
+
+    // 5. Submit Form & Analyze Review
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const reviewText = textarea.value.trim();
+      const ratingValue = nativeRatingSelect.value;
+
+      resultSection.classList.add("hidden");
+      errorMessage.classList.add("hidden");
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation: spin 0.8s linear infinite;">
+          <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+          <path d="M12 2a10 10 0 0 1 10 10"></path>
+        </svg>
+        <span>Analyzing with AI...</span>
+      `;
+
+      const token = localStorage.getItem("access_token");
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      try {
+        const response = await fetch("/predict", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            review_text: reviewText,
+            rating: ratingValue ? parseInt(ratingValue, 10) : null,
+          }),
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || "Something went wrong. Please try again.");
+        }
+
+        const data = await response.json();
+
+        // Update core text elements
+        document.getElementById("result-label").textContent = data.label;
+        document.getElementById("result-confidence").textContent = data.confidence;
+        document.getElementById("result-reasoning").textContent = data.reasoning;
+
+        // Confidence badge
+        confidenceBadge.textContent = `${confidenceBadgeIcon(data.confidence_level)} ${data.confidence_level} CONFIDENCE`;
+        confidenceBadge.className = `confidence-badge ${confidenceBadgeClass(data.confidence_level)}`;
+
+        // Human review banner
+        humanReviewBanner.classList.toggle("hidden", !data.needs_human_review);
+
+        // Render distinct Red/Green line styling & status pills
+        const isFake = data.label === "Fake";
+        resultSection.className = `result ${isFake ? "result-fake result-false" : "result-genuine result-true"}`;
+
+        const statusTag = document.getElementById("result-status-tag");
+        if (statusTag) {
+          statusTag.className = `result-status-tag ${isFake ? "tag-false" : "tag-true"}`;
+          statusTag.innerHTML = isFake 
+            ? `<span>🔴</span> Classified as False / Fake Review (Marked with Red Line)` 
+            : `<span>🟢</span> Classified as True / Genuine Review (Marked with Green Line)`;
+        }
+
+        // Animate confidence progress bar
+        confidenceBarFill.style.width = `${data.confidence}%`;
+        confidenceBarFill.style.backgroundColor = isFake ? "var(--fake-red)" : "var(--genuine-green)";
+        confidenceBarFill.style.boxShadow = isFake 
+          ? "0 0 10px rgba(239, 68, 68, 0.7)" 
+          : "0 0 10px rgba(16, 185, 129, 0.7)";
+
+        // Signal tags
+        if (data.indicators && data.indicators.length > 0) {
+          document.getElementById("result-indicators").textContent = data.indicators.join(", ");
+          indicatorsContainer.innerHTML = data.indicators
+            .map((sig) => `<span class="indicator-pill">${sig}</span>`)
+            .join("");
+          indicatorsWrap.classList.remove("hidden");
+        } else {
+          indicatorsWrap.classList.add("hidden");
+        }
+
+        cachedNote.classList.toggle("hidden", !data.cached);
+
+        resultSection.classList.remove("hidden");
+        resultSection.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (err) {
+        errorMessage.textContent = err.message;
+        errorMessage.classList.remove("hidden");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span>Analyze Review</span>
+        `;
+      }
+    });
+
+    // Keyframe spin for loader
+    const styleSheet = document.createElement("style");
+    styleSheet.textContent = "@keyframes spin { 100% { transform: rotate(360deg); } }";
+    document.head.appendChild(styleSheet);
+  </script>
+</body>
+</html>

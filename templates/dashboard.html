@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Fake Review Detection System</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="container wide">
+    <header>
+      <h1>Prediction Dashboard</h1>
+      <p class="subtitle"><a href="/">&larr; Back to review checker</a></p>
+    </header>
+
+    <main>
+      <section class="stats-grid" id="stats-grid">
+        <div class="stat-card">
+          <span class="stat-value" id="stat-total">–</span>
+          <span class="stat-label">Total Reviews</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="stat-fake">–</span>
+          <span class="stat-label">Fake (<span id="stat-fake-pct">–</span>%)</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="stat-genuine">–</span>
+          <span class="stat-label">Genuine (<span id="stat-genuine-pct">–</span>%)</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="stat-confidence">–</span>
+          <span class="stat-label">Avg. Confidence</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="stat-human-review">–</span>
+          <span class="stat-label">Needs Human Review</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="stat-cache-hits">–</span>
+          <span class="stat-label">Cache Hits</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="stat-llm-calls">–</span>
+          <span class="stat-label">LLM Calls</span>
+        </div>
+      </section>
+
+      <section class="chart-card">
+        <h2>Confidence Distribution</h2>
+        <div class="confidence-dist-grid">
+          <div class="confidence-dist-card high">
+            <span class="count" id="dist-high">–</span>
+            <span>HIGH</span>
+          </div>
+          <div class="confidence-dist-card medium">
+            <span class="count" id="dist-medium">–</span>
+            <span>MEDIUM</span>
+          </div>
+          <div class="confidence-dist-card low">
+            <span class="count" id="dist-low">–</span>
+            <span>LOW (flagged)</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="chart-card">
+        <h2>Trend — Last 14 Days</h2>
+        <canvas id="trend-chart" height="90"></canvas>
+      </section>
+
+      <div class="export-row">
+        <button id="export-excel-btn" class="export-btn">Export Excel</button>
+        <button id="export-pdf-btn" class="export-btn">Export PDF</button>
+      </div>
+
+      <div class="table-legend">
+        <span class="legend-item">
+          <span class="legend-line legend-line-false"></span>
+          <strong>False (Fake) Lines:</strong> Marked with Red Line
+        </span>
+        <span class="legend-item">
+          <span class="legend-line legend-line-true"></span>
+          <strong>True (Genuine) Lines:</strong> Marked with Green Line
+        </span>
+      </div>
+
+      <table id="history-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Review</th>
+            <th>Rating</th>
+            <th>Label</th>
+            <th>Confidence</th>
+            <th>Date</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="history-body">
+          <tr><td colspan="7">Loading...</td></tr>
+        </tbody>
+      </table>
+    </main>
+  </div>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>

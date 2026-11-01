@@ -2,9 +2,9 @@
 
 
 Hey !!
-check https://github.com/Worldofsadan/fake-review-agent
+check [https://github.com/subhablockchain/Fake_review_detection_system.git]
 
-live: [https://fake-review-agent.onrender.com](https://fake-review-agent.onrender.com)
+live: [https://fake-review-detection-system-8qv6.onrender.com](https://fake-review-detection-system-8qv6.onrender.com)
 
 
 
